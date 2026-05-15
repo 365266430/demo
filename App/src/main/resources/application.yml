@@ -39,3 +39,7 @@ spring:
         options:
           model: deepseek-chat
           temperature: 0.2
+
+rag:
+  service:
+    base-url: http://localhost:8000
