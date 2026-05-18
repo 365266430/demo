@@ -78,7 +78,7 @@ public class LegalDocumentAiAnalyzeService {
                 请分析下面这份法律文档或合同文本。
                 请从以下维度进行分析：
                 1. 文档整体摘要
-                2. 综合风险评分：0 到 100 分，分数越高代表风险越高
+                2. 综合安全评分：0 到 100 分，0 表示风险最高，100 表示风险最低，分数越高代表风险越小
                 3. 风险等级：LOW、MEDIUM、HIGH
                 4. 关键条款提取
                 5. 风险条款识别
@@ -89,7 +89,7 @@ public class LegalDocumentAiAnalyzeService {
                 请严格返回 JSON，不要返回 Markdown，不要返回解释文字。
                 JSON 格式如下：
                 {
-                  "riskScore": 65,
+                  "riskScore": 82,
                   "riskLevel": "MEDIUM",
                   "summary": "这是一份服务合作协议，主要约定了服务内容、付款方式、违约责任和保密义务。",
                   "keyClauses": [

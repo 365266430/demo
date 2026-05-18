@@ -13,6 +13,7 @@ import com.example.demo.modules.legaldocument.repository.LegalDocumentRepository
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -72,7 +73,8 @@ public class LegalDocumentRagService {
         return response;
     }
 
-    public void tryIngest(Long id) {
+    @Async
+    public void ingestAsync(Long id) {
         try {
             ingest(id);
         } catch (RuntimeException ignored) {

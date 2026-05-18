@@ -4,6 +4,7 @@ import com.example.demo.common.exception.BusinessException;
 import com.example.demo.modules.legaldocument.dto.LegalDocumentUploadResponse;
 import com.example.demo.modules.legaldocument.entity.LegalDocumentEntity;
 import com.example.demo.modules.legaldocument.enums.LegalDocumentStatus;
+import com.example.demo.modules.legaldocument.enums.RagIndexStatus;
 import com.example.demo.modules.legaldocument.rag.LegalDocumentRagService;
 import com.example.demo.modules.legaldocument.repository.LegalDocumentRepository;
 import lombok.RequiredArgsConstructor;
@@ -52,9 +53,10 @@ public class LegalDocumentUploadService {
         legalDocument.setFileSize(fileSize);
         legalDocument.setContent(content);
         legalDocument.setStatus(LegalDocumentStatus.PENDING);
+        legalDocument.setRagStatus(RagIndexStatus.INDEXING);
 
         LegalDocumentEntity saved = legalDocumentRepository.save(legalDocument);
-        legalDocumentRagService.tryIngest(saved.getId());
+        legalDocumentRagService.ingestAsync(saved.getId());
         if (enqueueAnalyzeTask) {
             legalDocumentAnalyzeProducer.sendAnalyzeTask(saved.getId());
         }

@@ -146,7 +146,7 @@ export default function LegalDocumentDetailPage() {
       <div className="page-header">
         <div>
           <h1>法律文档分析详情</h1>
-          <p className="sub-title">查看 AI 对法律文档的风险评分、关键条款、风险条款和修改建议。</p>
+          <p className="sub-title">查看 AI 对法律文档的安全评分、关键条款、风险条款和修改建议。安全评分越高代表风险越小。</p>
         </div>
 
         <div className="actions">
@@ -173,7 +173,7 @@ export default function LegalDocumentDetailPage() {
               <Info label="分析状态" value={<StatusBadge status={streaming ? "PROCESSING" : detail.status} />} />
               <Info label="RAG 索引" value={<RagStatusBadge status={indexing ? "INDEXING" : detail.ragStatus} />} />
               <Info label="索引切片" value={detail.ragChunkCount ?? "-"} />
-              <Info label="风险评分" value={riskScore ?? "-"} />
+              <Info label="安全评分（越高风险越小）" value={riskScore ?? "-"} />
               <Info label="风险等级" value={<RiskLevelBadge level={result?.overallRiskLevel} />} />
               <Info label="更新时间" value={formatDate(detail.updatedAt)} />
             </div>
@@ -263,6 +263,7 @@ export default function LegalDocumentDetailPage() {
                 <div>
                   <h2>风险概览</h2>
                   <p>{result.summary || detail.summary || "暂无内容"}</p>
+                  <p className="muted">安全评分范围为 0-100，分数越高表示风险越小。</p>
                   <p className="risk-level">风险等级：{formatRiskLevel(result.overallRiskLevel)}</p>
                 </div>
 
