@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 
 from app.core.text_splitter import text_splitter
-from app.core.vector_store import vector_store
+from app.core.vector_store import get_vector_store
 from app.schemas import IngestRequest, IngestResponse
 
 
@@ -11,7 +11,7 @@ class IngestService:
             raise HTTPException(status_code=400, detail="content must not be empty")
 
         chunks = text_splitter.split(request.content)
-        chunk_count = vector_store.upsert_document(
+        chunk_count = get_vector_store().upsert_document(
             document_id=request.document_id,
             filename=request.filename,
             chunks=chunks,
@@ -20,4 +20,3 @@ class IngestService:
 
 
 ingest_service = IngestService()
-

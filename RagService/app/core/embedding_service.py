@@ -1,13 +1,13 @@
 from functools import lru_cache
 
-from sentence_transformers import SentenceTransformer
-
 from app.config import settings
 
 
 class EmbeddingService:
     @lru_cache(maxsize=1)
-    def _model(self) -> SentenceTransformer:
+    def _model(self):
+        from sentence_transformers import SentenceTransformer
+
         return SentenceTransformer(settings.embedding_model)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
@@ -18,4 +18,3 @@ class EmbeddingService:
 
 
 embedding_service = EmbeddingService()
-

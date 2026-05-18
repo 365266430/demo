@@ -4,6 +4,7 @@ import com.example.demo.common.exception.BusinessException;
 import com.example.demo.modules.legaldocument.dto.LegalDocumentUploadResponse;
 import com.example.demo.modules.legaldocument.entity.LegalDocumentEntity;
 import com.example.demo.modules.legaldocument.enums.LegalDocumentStatus;
+import com.example.demo.modules.legaldocument.rag.LegalDocumentRagService;
 import com.example.demo.modules.legaldocument.repository.LegalDocumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ public class LegalDocumentUploadService {
     private final LegalDocumentAnalyzeProducer legalDocumentAnalyzeProducer;
     private final LegalDocumentRepository legalDocumentRepository;
     private final DocumentParseService documentParseService;
+    private final LegalDocumentRagService legalDocumentRagService;
 
     /**
      * 上传法律文档并默认提交异步分析任务。
@@ -52,6 +54,7 @@ public class LegalDocumentUploadService {
         legalDocument.setStatus(LegalDocumentStatus.PENDING);
 
         LegalDocumentEntity saved = legalDocumentRepository.save(legalDocument);
+        legalDocumentRagService.tryIngest(saved.getId());
         if (enqueueAnalyzeTask) {
             legalDocumentAnalyzeProducer.sendAnalyzeTask(saved.getId());
         }

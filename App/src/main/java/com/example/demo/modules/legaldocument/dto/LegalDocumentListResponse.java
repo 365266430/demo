@@ -1,6 +1,7 @@
 package com.example.demo.modules.legaldocument.dto;
 
 import com.example.demo.modules.legaldocument.enums.LegalDocumentStatus;
+import com.example.demo.modules.legaldocument.enums.RagIndexStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -23,6 +24,8 @@ public class LegalDocumentListResponse {
     private LegalDocumentStatus status;
 
     private String overallRiskLevel;
+
+    private RagIndexStatus ragStatus;
 
     private LocalDateTime createdAt;
 

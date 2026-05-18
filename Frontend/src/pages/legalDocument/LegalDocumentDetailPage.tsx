@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getLegalDocumentDetail } from "../../api/legalDocument";
-import type { LegalDocumentDetail, LegalDocumentStatus, RiskLevel } from "../../types/legalDocument";
+import { askLegalDocument, getLegalDocumentDetail, ingestLegalDocument } from "../../api/legalDocument";
+import type { LegalDocumentDetail, LegalDocumentStatus, RagIndexStatus, RiskLevel } from "../../types/legalDocument";
 
 export default function LegalDocumentDetailPage() {
   const navigate = useNavigate();
@@ -16,6 +16,9 @@ export default function LegalDocumentDetailPage() {
   const [reanalyzing, setReanalyzing] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [message, setMessage] = useState("");
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [indexing, setIndexing] = useState(false);
 
   async function loadDetail() {
     if (!id) return;
@@ -78,6 +81,42 @@ export default function LegalDocumentDetailPage() {
     startStream(true);
   }
 
+  async function handleBuildRagIndex() {
+    if (!id) return;
+
+    try {
+      setIndexing(true);
+      setMessage("");
+      await ingestLegalDocument(id);
+      await loadDetail();
+    } catch (error: any) {
+      setMessage(error.message || "建立 RAG 索引失败");
+      await loadDetail();
+    } finally {
+      setIndexing(false);
+    }
+  }
+
+  async function handleAsk() {
+    const trimmed = question.trim();
+    if (!trimmed) {
+      setMessage("请输入要咨询的问题");
+      return;
+    }
+
+    try {
+      setAsking(true);
+      setMessage("");
+      await askLegalDocument(id, trimmed);
+      setQuestion("");
+      await loadDetail();
+    } catch (error: any) {
+      setMessage(error.message || "RAG 问答失败");
+    } finally {
+      setAsking(false);
+    }
+  }
+
   useEffect(() => {
     async function init() {
       setLoading(true);
@@ -132,10 +171,66 @@ export default function LegalDocumentDetailPage() {
               <Info label="文件类型" value={formatContentType(detail.contentType)} />
               <Info label="文件大小" value={formatFileSize(detail.fileSize)} />
               <Info label="分析状态" value={<StatusBadge status={streaming ? "PROCESSING" : detail.status} />} />
+              <Info label="RAG 索引" value={<RagStatusBadge status={indexing ? "INDEXING" : detail.ragStatus} />} />
+              <Info label="索引切片" value={detail.ragChunkCount ?? "-"} />
               <Info label="风险评分" value={riskScore ?? "-"} />
               <Info label="风险等级" value={<RiskLevelBadge level={result?.overallRiskLevel} />} />
               <Info label="更新时间" value={formatDate(detail.updatedAt)} />
             </div>
+          </div>
+
+          <div className="card rag-card">
+            <div className="rag-header">
+              <div>
+                <h2>文档问答</h2>
+                <p className="sub-title">基于当前文档索引检索相关片段，再生成回答。</p>
+              </div>
+              {detail.ragStatus !== "INDEXED" && (
+                <button className="secondary-button" onClick={handleBuildRagIndex} disabled={indexing}>
+                  {indexing ? "索引中..." : "重新建立索引"}
+                </button>
+              )}
+            </div>
+
+            {detail.ragStatus === "FAILED" && (
+              <div className="message error">{detail.ragErrorMessage || "RAG 索引建立失败"}</div>
+            )}
+
+            <div className="qa-composer">
+              <textarea
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder={detail.ragStatus === "INDEXED" ? "输入你想基于这份文档咨询的问题" : "索引完成后即可提问"}
+                disabled={detail.ragStatus !== "INDEXED" || asking}
+              />
+              <button className="primary-button" onClick={handleAsk} disabled={detail.ragStatus !== "INDEXED" || asking}>
+                {asking ? "回答中..." : "发送问题"}
+              </button>
+            </div>
+
+            {!detail.qaRecords || detail.qaRecords.length === 0 ? (
+              <p className="muted">暂无问答记录</p>
+            ) : (
+              <div className="qa-list">
+                {detail.qaRecords.map((record) => (
+                  <div className="qa-item" key={record.id}>
+                    <div className="qa-question">问：{record.question}</div>
+                    <div className="qa-answer">{record.answer}</div>
+                    {record.sources?.length > 0 && (
+                      <details className="qa-sources">
+                        <summary>查看引用片段</summary>
+                        {record.sources.map((source) => (
+                          <div className="source-item" key={source.chunkId}>
+                            <div className="source-title">片段 {source.chunkIndex}</div>
+                            <p>{source.content}</p>
+                          </div>
+                        ))}
+                      </details>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {streaming && (
@@ -223,6 +318,18 @@ function StatusBadge({ status }: { status: LegalDocumentStatus }) {
   };
 
   return <span className={`status status-${status.toLowerCase()}`}>{textMap[status]}</span>;
+}
+
+function RagStatusBadge({ status }: { status?: RagIndexStatus | null }) {
+  const value = status || "NOT_INDEXED";
+  const textMap: Record<RagIndexStatus, string> = {
+    NOT_INDEXED: "未索引",
+    INDEXING: "索引中",
+    INDEXED: "已索引",
+    FAILED: "失败",
+  };
+
+  return <span className={`status rag-${value.toLowerCase().replace("_", "-")}`}>{textMap[value]}</span>;
 }
 
 function RiskLevelBadge({ level }: { level?: RiskLevel }) {

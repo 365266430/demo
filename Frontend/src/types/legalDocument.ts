@@ -2,6 +2,8 @@ export type LegalDocumentStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAIL
 
 export type AnalyzeStatus = LegalDocumentStatus;
 
+export type RagIndexStatus = "NOT_INDEXED" | "INDEXING" | "INDEXED" | "FAILED";
+
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
 export interface LegalDocumentUploadResponse {
@@ -16,9 +18,34 @@ export interface LegalDocumentListItem {
   contentType: string;
   fileSize: number;
   status: AnalyzeStatus;
+  ragStatus?: RagIndexStatus | null;
   overallRiskLevel?: RiskLevel | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RagSourceChunk {
+  documentId: string;
+  chunkId: string;
+  chunkIndex: number;
+  content: string;
+  score?: number | null;
+}
+
+export interface RagAskResponse {
+  documentId: string;
+  question: string;
+  answer: string;
+  sources: RagSourceChunk[];
+}
+
+export interface RagQaRecord {
+  id: number;
+  legalDocumentId: number;
+  question: string;
+  answer: string;
+  sources: RagSourceChunk[];
+  createdAt: string;
 }
 
 export interface LegalAnalysisResult {
@@ -41,6 +68,11 @@ export interface LegalDocumentDetail {
   contentType: string;
   fileSize: number;
   status: AnalyzeStatus;
+  ragStatus?: RagIndexStatus | null;
+  ragChunkCount?: number | null;
+  ragErrorMessage?: string | null;
+  ragIndexedAt?: string | null;
+  qaRecords?: RagQaRecord[];
   score?: number | null;
   summary?: string | null;
   analysisResult?: LegalAnalysisResult | null;

@@ -39,15 +39,20 @@ export default function LegalDocumentUploadPage() {
         </p>
 
         <div className="upload-box">
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx,.txt"
-            onChange={(event) => {
-              const selected = event.target.files?.[0];
-              setFile(selected || null);
-              setMessage("");
-            }}
-          />
+          <label className={`file-picker ${file ? "file-picker-selected" : ""}`}>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.txt"
+              onChange={(event) => {
+                const selected = event.target.files?.[0];
+                setFile(selected || null);
+                setMessage("");
+              }}
+            />
+            <span className="file-picker-icon">+</span>
+            <span className="file-picker-title">{file ? "已选择文件" : "选择法律文档"}</span>
+            <span className="file-picker-hint">支持 PDF、DOC、DOCX、TXT，最大 10MB</span>
+          </label>
 
           {file && (
             <div className="file-info">

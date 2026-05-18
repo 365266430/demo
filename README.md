@@ -264,19 +264,95 @@ spring:
 
 ## 启动
 
-### 1. 启动依赖
+### 1. 准备运行环境
 
-请先确认以下服务可用：
+请先确认本机已安装并启动以下依赖：
 
+- JDK 17
+- Maven
+- Node.js / npm
+- Python 3.10+
 - MySQL
 - Redis
-- DeepSeek/OpenAI-compatible API Key
 
-### 2. 启动后端
+数据库和 Redis 默认连接信息位于 `App/src/main/resources/application.yml`：
+
+```text
+MySQL: jdbc:mysql://localhost:3306/legal_document_analysis
+Redis: localhost:26380
+```
+
+如果本机账号、密码或端口不同，请先修改 `application.yml` 中的配置。
+
+### 2. 配置 AI Key
+
+后端通过环境变量读取 DeepSeek/OpenAI-compatible API Key：
+
+```bash
+DEEPSEEK_API_KEY=你的 API Key
+```
+
+Windows PowerShell 示例：
+
+```powershell
+$env:DEEPSEEK_API_KEY="你的 API Key"
+```
+
+macOS / Linux 示例：
+
+```bash
+export DEEPSEEK_API_KEY="你的 API Key"
+```
+
+注意：环境变量需要在启动后端的同一个终端窗口中设置。
+
+### 3. 启动 RAG 服务
+
+RAG 服务用于法律文档检索增强问答，后端默认访问 `http://localhost:8000`。
+
+首次启动：
+
+```bash
+cd RagService
+python -m venv .venv
+```
+
+Windows PowerShell：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+macOS / Linux：
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+RAG 服务地址：
+
+```text
+http://localhost:8000
+```
+
+### 4. 启动后端
 
 ```bash
 cd App
-mvn spring-boot:run
+./mvnw spring-boot:run
+```
+
+Windows PowerShell 也可以使用：
+
+```powershell
+cd App
+.\mvnw.cmd spring-boot:run
 ```
 
 后端地址：
@@ -285,7 +361,14 @@ mvn spring-boot:run
 http://localhost:8082
 ```
 
-### 3. 启动前端
+如果不使用项目自带的 Maven Wrapper，也可以执行：
+
+```bash
+cd App
+mvn spring-boot:run
+```
+
+### 5. 启动前端
 
 ```bash
 cd Frontend
@@ -303,6 +386,20 @@ Vite 已配置 `/api` 代理到：
 
 ```text
 http://localhost:8082
+```
+
+### 6. 访问系统
+
+三个服务都启动成功后，在浏览器打开：
+
+```text
+http://localhost:5173
+```
+
+推荐启动顺序：
+
+```text
+MySQL / Redis -> RAG 服务 -> Spring Boot 后端 -> React 前端
 ```
 
 ---

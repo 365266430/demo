@@ -1,7 +1,10 @@
+from functools import lru_cache
+import os
 from pathlib import Path
 
-import chromadb
-from chromadb.api.models.Collection import Collection
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+os.environ.setdefault("CHROMA_PRODUCT_TELEMETRY_IMPL", "app.utils.chroma_telemetry.NoOpProductTelemetryClient")
+os.environ.setdefault("CHROMA_TELEMETRY_IMPL", "app.utils.chroma_telemetry.NoOpProductTelemetryClient")
 
 from app.config import settings
 from app.core.embedding_service import embedding_service
@@ -10,8 +13,18 @@ from app.schemas import SourceChunk
 
 class VectorStore:
     def __init__(self) -> None:
+        import chromadb
+        from chromadb.config import Settings as ChromaSettings
+
         Path(settings.vector_store_path).mkdir(parents=True, exist_ok=True)
-        self.client = chromadb.PersistentClient(path=settings.vector_store_path)
+        self.client = chromadb.PersistentClient(
+            path=settings.vector_store_path,
+            settings=ChromaSettings(
+                anonymized_telemetry=False,
+                chroma_product_telemetry_impl="app.utils.chroma_telemetry.NoOpProductTelemetryClient",
+                chroma_telemetry_impl="app.utils.chroma_telemetry.NoOpProductTelemetryClient",
+            ),
+        )
         self.collection = self.client.get_or_create_collection(name="legal_documents")
 
     def upsert_document(self, document_id: str, filename: str | None, chunks: list[str]) -> int:
@@ -65,9 +78,9 @@ class VectorStore:
         return sources
 
     def delete_document(self, document_id: str) -> None:
-        collection: Collection = self.collection
-        collection.delete(where={"document_id": document_id})
+        self.collection.delete(where={"document_id": document_id})
 
 
-vector_store = VectorStore()
-
+@lru_cache(maxsize=1)
+def get_vector_store() -> VectorStore:
+    return VectorStore()

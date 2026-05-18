@@ -1,6 +1,7 @@
 package com.example.demo.modules.legaldocument.entity;
 
 import com.example.demo.modules.legaldocument.enums.LegalDocumentStatus;
+import com.example.demo.modules.legaldocument.enums.RagIndexStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -56,6 +57,19 @@ public class LegalDocumentEntity {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "rag_status", length = 30)
+    private RagIndexStatus ragStatus;
+
+    @Column(name = "rag_chunk_count")
+    private Integer ragChunkCount;
+
+    @Column(name = "rag_error_message", columnDefinition = "TEXT")
+    private String ragErrorMessage;
+
+    @Column(name = "rag_indexed_at")
+    private LocalDateTime ragIndexedAt;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -69,6 +83,9 @@ public class LegalDocumentEntity {
 
         if (this.status == null) {
             this.status = LegalDocumentStatus.PENDING;
+        }
+        if (this.ragStatus == null) {
+            this.ragStatus = RagIndexStatus.NOT_INDEXED;
         }
     }
 

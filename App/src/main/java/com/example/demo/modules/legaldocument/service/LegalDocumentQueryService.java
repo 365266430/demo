@@ -5,8 +5,13 @@ import com.example.demo.modules.legaldocument.dto.LegalDocumentAiResult;
 import com.example.demo.modules.legaldocument.dto.LegalDocumentDetailResponse;
 import com.example.demo.modules.legaldocument.dto.LegalDocumentListResponse;
 import com.example.demo.modules.legaldocument.entity.LegalDocumentEntity;
+import com.example.demo.modules.legaldocument.entity.LegalDocumentQaRecordEntity;
+import com.example.demo.modules.legaldocument.rag.dto.RagQaRecordResponse;
+import com.example.demo.modules.legaldocument.rag.dto.RagSourceChunk;
+import com.example.demo.modules.legaldocument.repository.LegalDocumentQaRecordRepository;
 import com.example.demo.modules.legaldocument.repository.LegalDocumentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +22,7 @@ import java.util.List;
 public class LegalDocumentQueryService {
 
     private final LegalDocumentRepository legalDocumentRepository;
+    private final LegalDocumentQaRecordRepository qaRecordRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -52,6 +58,7 @@ public class LegalDocumentQueryService {
                 legalDocument.getFileSize(),
                 legalDocument.getStatus(),
                 analysisResult == null ? null : analysisResult.getOverallRiskLevel(),
+                legalDocument.getRagStatus(),
                 legalDocument.getCreatedAt(),
                 legalDocument.getUpdatedAt()
         );
@@ -71,8 +78,27 @@ public class LegalDocumentQueryService {
                 legalDocument.getSummary(),
                 parseAnalysisResult(legalDocument.getAnalysisResult()),
                 legalDocument.getErrorMessage(),
+                legalDocument.getRagStatus(),
+                legalDocument.getRagChunkCount(),
+                legalDocument.getRagErrorMessage(),
+                legalDocument.getRagIndexedAt(),
+                qaRecordRepository.findByLegalDocumentIdOrderByCreatedAtAsc(legalDocument.getId())
+                        .stream()
+                        .map(this::toQaRecordResponse)
+                        .toList(),
                 legalDocument.getCreatedAt(),
                 legalDocument.getUpdatedAt()
+        );
+    }
+
+    private RagQaRecordResponse toQaRecordResponse(LegalDocumentQaRecordEntity record) {
+        return new RagQaRecordResponse(
+                record.getId(),
+                record.getLegalDocumentId(),
+                record.getQuestion(),
+                record.getAnswer(),
+                parseSources(record.getSourcesJson()),
+                record.getCreatedAt()
         );
     }
 
@@ -88,6 +114,18 @@ public class LegalDocumentQueryService {
             return objectMapper.readValue(analysisResult, LegalDocumentAiResult.class);
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private List<RagSourceChunk> parseSources(String sourcesJson) {
+        if (sourcesJson == null || sourcesJson.isBlank()) {
+            return List.of();
+        }
+
+        try {
+            return objectMapper.readValue(sourcesJson, new TypeReference<List<RagSourceChunk>>() {});
+        } catch (Exception e) {
+            return List.of();
         }
     }
 }

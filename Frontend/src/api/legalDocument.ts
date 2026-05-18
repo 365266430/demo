@@ -2,6 +2,7 @@ import request from "./request";
 import type {
   LegalDocumentDetail,
   LegalDocumentListItem,
+  RagAskResponse,
   LegalDocumentUploadResponse,
 } from "../types/legalDocument";
 
@@ -32,4 +33,15 @@ export function deleteLegalDocument(id: number) {
 
 export function reanalyzeLegalDocument(id: number) {
   return request.post<any, LegalDocumentUploadResponse>(`${API_PREFIX}/${id}/reanalyze`);
+}
+
+export function askLegalDocument(id: number, question: string, topK = 5) {
+  return request.post<any, RagAskResponse>(`${API_PREFIX}/${id}/rag/ask`, {
+    question,
+    topK,
+  });
+}
+
+export function ingestLegalDocument(id: number) {
+  return request.post<any, { documentId: string; chunkCount: number }>(`${API_PREFIX}/${id}/rag/ingest`);
 }
