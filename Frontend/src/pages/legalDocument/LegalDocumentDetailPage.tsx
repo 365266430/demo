@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { askLegalDocument, getLegalDocumentDetail, ingestLegalDocument } from "../../api/legalDocument";
+import {
+  deleteLegalDocumentQaRecord,
+  getLegalDocumentDetail,
+  ingestLegalDocument,
+} from "../../api/legalDocument";
 import type { LegalDocumentDetail, LegalDocumentStatus, RagIndexStatus, RiskLevel } from "../../types/legalDocument";
 
 export default function LegalDocumentDetailPage() {
@@ -9,6 +13,7 @@ export default function LegalDocumentDetailPage() {
   const id = Number(params.id);
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  const qaEventSourceRef = useRef<EventSource | null>(null);
 
   const [detail, setDetail] = useState<LegalDocumentDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -18,7 +23,11 @@ export default function LegalDocumentDetailPage() {
   const [message, setMessage] = useState("");
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
+  const [streamingAnswer, setStreamingAnswer] = useState("");
   const [indexing, setIndexing] = useState(false);
+  const [deletingRecordId, setDeletingRecordId] = useState<number | null>(null);
+  const [qaHistoryExpanded, setQaHistoryExpanded] = useState(true);
+  const [expandedQaRecordIds, setExpandedQaRecordIds] = useState<Set<number>>(new Set());
 
   async function loadDetail() {
     if (!id) return;
@@ -34,6 +43,11 @@ export default function LegalDocumentDetailPage() {
   function closeStream() {
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
+  }
+
+  function closeQaStream() {
+    qaEventSourceRef.current?.close();
+    qaEventSourceRef.current = null;
   }
 
   function startStream(reanalyze = false) {
@@ -104,17 +118,70 @@ export default function LegalDocumentDetailPage() {
       return;
     }
 
-    try {
-      setAsking(true);
-      setMessage("");
-      await askLegalDocument(id, trimmed);
+    closeQaStream();
+    setAsking(true);
+    setStreamingAnswer("");
+    setMessage("");
+
+    const params = new URLSearchParams({
+      question: trimmed,
+      topK: "5",
+    });
+    const eventSource = new EventSource(`/api/legal-documents/${id}/rag/ask-stream?${params.toString()}`);
+    qaEventSourceRef.current = eventSource;
+
+    eventSource.addEventListener("chunk", (event) => {
+      setStreamingAnswer((previous) => previous + event.data);
+    });
+
+    eventSource.addEventListener("done", async () => {
+      closeQaStream();
+      setAsking(false);
       setQuestion("");
+      setStreamingAnswer("");
+      await loadDetail();
+    });
+
+    eventSource.addEventListener("qa-error", (event) => {
+      closeQaStream();
+      setAsking(false);
+      setMessage((event as MessageEvent).data || "RAG 问答失败");
+    });
+
+    eventSource.onerror = () => {
+      closeQaStream();
+      setAsking(false);
+      setMessage("问答流式连接已断开");
+    };
+  }
+
+  async function handleDeleteQaRecord(recordId: number) {
+    if (!window.confirm("确定删除这条问答记录吗？")) {
+      return;
+    }
+
+    try {
+      setDeletingRecordId(recordId);
+      setMessage("");
+      await deleteLegalDocumentQaRecord(id, recordId);
       await loadDetail();
     } catch (error: any) {
-      setMessage(error.message || "RAG 问答失败");
+      setMessage(error.message || "删除问答记录失败");
     } finally {
-      setAsking(false);
+      setDeletingRecordId(null);
     }
+  }
+
+  function toggleQaRecord(recordId: number) {
+    setExpandedQaRecordIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(recordId)) {
+        next.delete(recordId);
+      } else {
+        next.add(recordId);
+      }
+      return next;
+    });
   }
 
   useEffect(() => {
@@ -128,6 +195,7 @@ export default function LegalDocumentDetailPage() {
 
     return () => {
       closeStream();
+      closeQaStream();
     };
   }, [id]);
 
@@ -208,27 +276,68 @@ export default function LegalDocumentDetailPage() {
               </button>
             </div>
 
-            {!detail.qaRecords || detail.qaRecords.length === 0 ? (
+            {asking && (
+              <div className="qa-item qa-streaming">
+                <div className="qa-question">问：{question.trim()}</div>
+                <div className="qa-answer">{streamingAnswer || "正在生成回答..."}</div>
+              </div>
+            )}
+
+            <div className="qa-history-header">
+              <h3>历史对话记录</h3>
+              <button className="secondary-button" onClick={() => setQaHistoryExpanded((value) => !value)}>
+                {qaHistoryExpanded ? "收起历史" : `展开历史（${detail.qaRecords?.length || 0}）`}
+              </button>
+            </div>
+
+            {!qaHistoryExpanded ? null : !detail.qaRecords || detail.qaRecords.length === 0 ? (
               <p className="muted">暂无问答记录</p>
             ) : (
               <div className="qa-list">
-                {detail.qaRecords.map((record) => (
-                  <div className="qa-item" key={record.id}>
-                    <div className="qa-question">问：{record.question}</div>
-                    <div className="qa-answer">{record.answer}</div>
-                    {record.sources?.length > 0 && (
-                      <details className="qa-sources">
-                        <summary>查看引用片段</summary>
-                        {record.sources.map((source) => (
-                          <div className="source-item" key={source.chunkId}>
-                            <div className="source-title">片段 {source.chunkIndex}</div>
-                            <p>{source.content}</p>
+                {[...detail.qaRecords]
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .map((record) => {
+                    const expanded = expandedQaRecordIds.has(record.id);
+                    const shouldCollapse = record.answer && record.answer.length > 260;
+                    const answer = expanded || !shouldCollapse ? record.answer : `${record.answer.slice(0, 260)}...`;
+
+                    return (
+                      <div className="qa-item" key={record.id}>
+                        <div className="qa-item-header">
+                          <div>
+                            <div className="qa-question">问：{record.question}</div>
+                            <div className="qa-time">{formatDate(record.createdAt)}</div>
                           </div>
-                        ))}
-                      </details>
-                    )}
-                  </div>
-                ))}
+                          <button
+                            className="danger-button"
+                            onClick={() => handleDeleteQaRecord(record.id)}
+                            disabled={deletingRecordId === record.id}
+                          >
+                            {deletingRecordId === record.id ? "删除中..." : "删除"}
+                          </button>
+                        </div>
+                        <div className={`qa-answer ${!expanded && shouldCollapse ? "qa-answer-collapsed" : ""}`}>
+                          {answer}
+                        </div>
+                        {shouldCollapse && (
+                          <button className="link-button qa-toggle-button" onClick={() => toggleQaRecord(record.id)}>
+                            {expanded ? "收起回答" : "展开完整回答"}
+                          </button>
+                        )}
+                        {record.sources?.length > 0 && (
+                          <details className="qa-sources">
+                            <summary>查看引用片段</summary>
+                            {record.sources.map((source) => (
+                              <div className="source-item" key={source.chunkId}>
+                                <div className="source-title">片段 {source.chunkIndex}</div>
+                                <p>{source.content}</p>
+                              </div>
+                            ))}
+                          </details>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>

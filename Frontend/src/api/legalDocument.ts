@@ -45,3 +45,7 @@ export function askLegalDocument(id: number, question: string, topK = 5) {
 export function ingestLegalDocument(id: number) {
   return request.post<any, { documentId: string; chunkCount: number }>(`${API_PREFIX}/${id}/rag/ingest`);
 }
+
+export function deleteLegalDocumentQaRecord(id: number, recordId: number) {
+  return request.delete<any, null>(`${API_PREFIX}/${id}/rag/qa-records/${recordId}`);
+}

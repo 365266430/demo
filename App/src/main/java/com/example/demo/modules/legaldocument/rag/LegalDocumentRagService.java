@@ -15,12 +15,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
 public class LegalDocumentRagService {
+
+    private static final long QA_STREAM_TIMEOUT_MILLIS = 5 * 60 * 1000L;
+    private static final int QA_STREAM_CHUNK_SIZE = 24;
 
     private final LegalDocumentRepository legalDocumentRepository;
     private final LegalDocumentQaRecordRepository qaRecordRepository;
@@ -73,6 +79,28 @@ public class LegalDocumentRagService {
         return response;
     }
 
+    public SseEmitter streamAsk(Long id, RagAskRequest request) {
+        SseEmitter emitter = new SseEmitter(QA_STREAM_TIMEOUT_MILLIS);
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                RagAskResponse response = ask(id, request);
+                streamAnswer(emitter, response == null ? "" : response.getAnswer());
+                sendEvent(emitter, "done", "");
+                emitter.complete();
+            } catch (Exception e) {
+                try {
+                    sendEvent(emitter, "qa-error", e.getMessage());
+                    emitter.complete();
+                } catch (Exception ignored) {
+                    emitter.completeWithError(e);
+                }
+            }
+        });
+
+        return emitter;
+    }
+
     @Async
     public void ingestAsync(Long id) {
         try {
@@ -96,6 +124,39 @@ public class LegalDocumentRagService {
             record.setSourcesJson("[]");
         }
         qaRecordRepository.save(record);
+    }
+
+    public void deleteQaRecord(Long legalDocumentId, Long recordId) {
+        getDocument(legalDocumentId);
+        LegalDocumentQaRecordEntity record = qaRecordRepository.findById(recordId)
+                .orElseThrow(() -> new BusinessException(404, "问答记录不存在"));
+
+        if (!legalDocumentId.equals(record.getLegalDocumentId())) {
+            throw new BusinessException(404, "问答记录不存在");
+        }
+
+        qaRecordRepository.delete(record);
+    }
+
+    private void streamAnswer(SseEmitter emitter, String answer) {
+        String content = answer == null ? "" : answer;
+        if (content.isBlank()) {
+            sendEvent(emitter, "chunk", "");
+            return;
+        }
+
+        for (int start = 0; start < content.length(); start += QA_STREAM_CHUNK_SIZE) {
+            int end = Math.min(start + QA_STREAM_CHUNK_SIZE, content.length());
+            sendEvent(emitter, "chunk", content.substring(start, end));
+        }
+    }
+
+    private void sendEvent(SseEmitter emitter, String name, String data) {
+        try {
+            emitter.send(SseEmitter.event().name(name).data(data == null ? "" : data));
+        } catch (IOException e) {
+            throw new BusinessException("SSE 消息发送失败：" + e.getMessage(), e);
+        }
     }
 
     private LegalDocumentEntity getDocument(Long id) {
