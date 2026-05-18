@@ -1,5 +1,6 @@
 # Local IDE metadata
 .idea/
+.mvn/
 *.iml
 *.iws
 *.ipr
