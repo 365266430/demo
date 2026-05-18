@@ -1,0 +1,31 @@
+# Local IDE metadata
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# RagService local runtime state
+RagService/.env
+RagService/.run/
+RagService/.venv/
+RagService/data/
+
+# Frontend build/dependencies
+Frontend/node_modules/
+Frontend/dist/
+
+# Java build output
+target/
+App/target/
+
+# OS/log files
+.DS_Store
+Thumbs.db
+*.log
